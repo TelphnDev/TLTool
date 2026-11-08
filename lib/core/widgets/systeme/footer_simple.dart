@@ -9,24 +9,25 @@ class AppFooterSimple extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return SafeArea(
-      top: false, // pas de marge en haut, seulement sous la barre système
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(AppSizes.s4),
-        decoration: BoxDecoration(
-          color: scheme.surface,
-          border: Border(
-            top: BorderSide(color: scheme.outline, width: AppShapes.borderWidth),
-          ),
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        border: Border(
+          top: BorderSide(color: scheme.outline, width: AppShapes.borderWidth),
         ),
-        child: Text(
-          '© ${DateTime.now().year} — Mon application',
-          textAlign: TextAlign.center,
-          style: Theme.of(context)
-              .textTheme
-              .labelSmall
-              ?.copyWith(color: scheme.onSurfaceVariant),
+      ),
+      child: SafeArea(
+        top: false, // seulement sous la barre système
+        child: Padding(
+          padding: const EdgeInsets.all(AppSizes.s4),
+          child: Text(
+            '© ${DateTime.now().year} — Mon application',
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+          ),
         ),
       ),
     );

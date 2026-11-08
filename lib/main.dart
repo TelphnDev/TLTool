@@ -4,10 +4,12 @@ import 'package:flutter/widget_previews.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
+import 'data/bdd/database.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await themeController.load();
+  await db.customSelect('SELECT 1').get(); // ouvre la base au démarrage
   runApp(const MyApp());
 }
 
