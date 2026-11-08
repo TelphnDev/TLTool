@@ -6,18 +6,19 @@ class InfoCard extends StatelessWidget {
   const InfoCard({
     super.key,
     required this.title,
-    required this.subtitle,
+    this.subtitle, // facultatif : rien n'est affiché si null
     this.onTap,
   });
 
   final String title;
-  final String subtitle;
+  final String? subtitle;
   final VoidCallback? onTap; // non null = carte cliquable
 
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final sub = subtitle;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -31,8 +32,10 @@ class InfoCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title, style: text.titleLarge),
-                    const SizedBox(height: AppSizes.s1),
-                    Text(subtitle, style: text.bodyMedium?.copyWith(color: muted)),
+                    if (sub != null) ...[
+                      const SizedBox(height: AppSizes.s1),
+                      Text(sub, style: text.bodyMedium?.copyWith(color: muted)),
+                    ],
                   ],
                 ),
               ),

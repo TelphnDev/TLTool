@@ -19,19 +19,13 @@ class SubPageEntry {
   const SubPageEntry({
     required this.id,
     required this.title,
-    required this.subtitle,
+    this.subtitle, // facultatif : pas de description si null
     required this.builder,
   });
 
-  /// Identifiant unique, utilisé dans l'adresse (/projets/<id>).
-  /// Sans espaces ni accents, et différent pour chaque enfant.
   final String id;
-
-  /// Titre de la carte dans la page parente.
   final String title;
-
-  /// Sous-titre de la carte dans la page parente.
-  final String subtitle;
+  final String? subtitle;
 
   /// Fonction qui construit la page enfant.
   /// `MaPage.new` signifie « appelle le constructeur de MaPage ».

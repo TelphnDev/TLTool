@@ -31,6 +31,7 @@ class AppFooterNavigation extends StatelessWidget {
       activeIcon: Icons.home,
       label: 'Accueil',
     ),
+    _Tab(route: AppRoute.bdd, icon: Icons.folder, activeIcon: Icons.folder_copy, label: 'Données'),
     _Tab(
       route: AppRoute.projects,
       icon: Icons.folder_outlined,

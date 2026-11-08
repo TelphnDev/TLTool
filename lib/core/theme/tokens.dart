@@ -49,6 +49,13 @@ class AppPalette {
     required this.border,
     required this.primary,
     required this.onPrimary,
+    required this.primaryContainer,
+    required this.onPrimaryContainer,
+    required this.secondary,
+    required this.onSecondary,
+    required this.success,
+    required this.warning,
+    required this.info,
     required this.error,
   });
 
@@ -59,27 +66,48 @@ class AppPalette {
   final Color border;
   final Color primary;
   final Color onPrimary;
+  final Color primaryContainer;
+  final Color onPrimaryContainer;
+  final Color secondary;
+  final Color onSecondary;
+  final Color success;
+  final Color warning;
+  final Color info;
   final Color error;
 
   static const light = AppPalette(
-    background: Color(0xFFF7F7FB),
+    background: Color(0xFFF6F8FC),
     surface: Color(0xFFFFFFFF),
-    text: Color(0xFF14141C),
-    muted: Color(0xFF5B5B6B),
-    border: Color(0xFFE2E2EC),
-    primary: Color(0xFF4F46E5),
+    text: Color(0xFF14181F),
+    muted: Color(0xFF5A6577),
+    border: Color(0xFFDFE5F0),
+    primary: Color(0xFF3F64A5), // bleu du site (bannière, titres)
     onPrimary: Color(0xFFFFFFFF),
+    primaryContainer: Color(0xFFDCE6F6),
+    onPrimaryContainer: Color(0xFF1B2F57),
+    secondary: Color(0xFFEE7D22), // orange du site (boutons, accroches)
+    onSecondary: Color(0xFFFFFFFF),
+    success: Color(0xFF2E8B57),
+    warning: Color(0xFFD99A00),
+    info: Color(0xFF2F80C9),
     error: Color(0xFFB3261E),
   );
 
   static const dark = AppPalette(
-    background: Color(0xFF0E0E14),
-    surface: Color(0xFF171722),
-    text: Color(0xFFF1F1F7),
-    muted: Color(0xFFA3A3B5),
-    border: Color(0xFF2A2A3A),
-    primary: Color(0xFF8B86FF),
-    onPrimary: Color(0xFF0E0E14),
+    background: Color(0xFF0E1420),
+    surface: Color(0xFF161F30),
+    text: Color(0xFFEEF2F9),
+    muted: Color(0xFF9AA7BD),
+    border: Color(0xFF26324A),
+    primary: Color(0xFF8FAEE8),
+    onPrimary: Color(0xFF0E1A33),
+    primaryContainer: Color(0xFF223860),
+    onPrimaryContainer: Color(0xFFDCE6F6),
+    secondary: Color(0xFFFF9A4D),
+    onSecondary: Color(0xFF2A1405),
+    success: Color(0xFF6FCF97),
+    warning: Color(0xFFF2C46D),
+    info: Color(0xFF7DB8F0),
     error: Color(0xFFF2B8B5),
   );
 }

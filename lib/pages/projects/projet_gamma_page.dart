@@ -11,7 +11,7 @@ import '../../core/widgets/page_container.dart';
 ///   2. `build` : le contenu de la page quand on ouvre la carte.
 ///
 /// Pour l'enregistrer : ajouter `ProjetGammaPage.entry` dans `_entries`
-/// de pages/projects_page.dart.
+/// de pages/projects.dart.
 class ProjetGammaPage extends StatelessWidget {
   const ProjetGammaPage({super.key});
 

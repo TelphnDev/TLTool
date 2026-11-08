@@ -11,14 +11,14 @@ import '../../core/widgets/page_container.dart';
 ///   2. `build` : le contenu de la page quand on ouvre la carte.
 ///
 /// Pour l'enregistrer : ajouter `ProjetBetaPage.entry` dans `_entries`
-/// de pages/projects_page.dart.
+/// de pages/projects.dart.
 class ProjetBetaPage extends StatelessWidget {
   const ProjetBetaPage({super.key});
 
   /// Infos de la carte affichée dans la page parente (Projets).
   static const entry = SubPageEntry(
     id: 'beta', //          adresse : /projets/beta (unique, sans espace)
-    title: 'Projet Beta', //      titre de la carte
+    title: 'Projet test', //      titre de la carte
     subtitle: 'Site web portfolio.', //   sous-titre de la carte
     builder: ProjetBetaPage.new, //  construit cette page
   );

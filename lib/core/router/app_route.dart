@@ -85,7 +85,11 @@ enum AppRoute {
     header: HeaderStyle.minimal,
     footer: FooterStyle.simple,
     parent: home,
-  );
+  ),
+  // /bdd      -> liste de cartes
+  // /bdd/:id  -> UNE seule route pour TOUTES les sous-pages
+  bdd(path: '/bdd', title: 'Données'),
+  bddDetail(path: '/bdd/:id', title: 'Donnée', parent: bdd);
 
   const AppRoute({
     required this.path,

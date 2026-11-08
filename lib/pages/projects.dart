@@ -5,7 +5,6 @@ import '../core/router/sub_page_entry.dart';
 import '../core/theme/tokens.dart';
 import '../core/widgets/info_card.dart';
 import '../core/widgets/page_container.dart';
-import 'projects/projet_alpha_page.dart';
 import 'projects/projet_beta_page.dart';
 import 'projects/projet_gamma_page.dart';
 
@@ -20,7 +19,7 @@ import 'projects/projet_gamma_page.dart';
 ///   1. `_entries` liste les pages enfants (une ligne par enfant).
 ///   2. Chaque enfant a un `entry` (SubPageEntry) qui donne titre/sous-titre.
 ///   3. Le parent fabrique une carte par entrée, sans connaître les textes.
-///   4. Un clic sur une carte navigue vers /projets/<id>.
+///   4. Un clic sur une carte navigue vers /projets/id.
 ///
 /// AJOUTER UN PROJET :
 ///   1. Crée pages/projects/projet_xxx_page.dart (copie un existant).
@@ -35,7 +34,6 @@ class ProjectsPage extends StatelessWidget {
 
   /// Liste des enfants. L'ordre ici = l'ordre des cartes à l'écran.
   static const _entries = <SubPageEntry>[
-    ProjetAlphaPage.entry,
     ProjetBetaPage.entry,
     ProjetGammaPage.entry,
   ];
