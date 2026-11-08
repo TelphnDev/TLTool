@@ -27,14 +27,24 @@ jobs:
     permissions:
       contents: write
     steps:
+<<<<<<< HEAD
       - uses: actions/checkout@<SHA_CHECKOUT> # v4.x.x
 
       - uses: actions/setup-java@<SHA_SETUP_JAVA> # v4.x.x
+=======
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+>>>>>>> test
         with:
           distribution: temurin
           java-version: "17"
 
+<<<<<<< HEAD
       - uses: subosito/flutter-action@<SHA_FLUTTER_ACTION> # v2.x.x
+=======
+      - uses: subosito/flutter-action@v2
+>>>>>>> test
         with:
           channel: stable
           cache: true
@@ -59,7 +69,11 @@ jobs:
       - name: Build APK signé
         run: flutter build apk --release
 
+<<<<<<< HEAD
       - uses: actions/upload-artifact@<SHA_UPLOAD_ARTIFACT> # v4.x.x
+=======
+      - uses: actions/upload-artifact@v4
+>>>>>>> test
         with:
           name: android-apk
           path: build/app/outputs/flutter-apk/app-release.apk
