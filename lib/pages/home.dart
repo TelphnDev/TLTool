@@ -14,7 +14,7 @@ class HomePage extends StatelessWidget {
       children: [
         Text('Bienvenue', style: text.headlineLarge),
         const SizedBox(height: AppSizes.s3),
-        Text('Page d\'accueil de l\'application.', style: text.bodyLarge),
+        Text('Ma page d\'accueil de l\'application.', style: text.bodyLarge),
         const SizedBox(height: AppSizes.s6),
         Align(
           alignment: Alignment.centerLeft,
