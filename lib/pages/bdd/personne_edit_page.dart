@@ -1,8 +1,9 @@
-import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../data/bdd/database.dart' as bdd;
+import '../../data/bdd/depots.dart';
+import 'gabarits.dart';
 import 'widgets/bdd_widgets.dart';
 import 'widgets/selecteur_logement.dart';
 
@@ -19,17 +20,14 @@ class PersonneEditPage extends StatefulWidget {
 }
 
 class _PersonneEditPageState extends State<PersonneEditPage> {
-  final _formKey = GlobalKey<FormState>();
   late final _prenom =
-  TextEditingController(text: widget.personne?.prenom ?? '');
+      TextEditingController(text: widget.personne?.prenom ?? '');
   late final _nom = TextEditingController(text: widget.personne?.nom ?? '');
   late final _tel =
-  TextEditingController(text: widget.personne?.numeroTel ?? '');
+      TextEditingController(text: widget.personne?.numeroTel ?? '');
   late final _commentaire =
-  TextEditingController(text: widget.personne?.commentaire ?? '');
+      TextEditingController(text: widget.personne?.commentaire ?? '');
   late bdd.Logement? _logement = widget.logement;
-
-  bool _enCours = false;
 
   bool get _edition => widget.personne != null;
 
@@ -42,183 +40,91 @@ class _PersonneEditPageState extends State<PersonneEditPage> {
     super.dispose();
   }
 
+  /// Appelée par PageFormulaire après validation des champs.
   Future<void> _enregistrer() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _enCours = true);
-
-    final db = bdd.db;
-    final navigator = Navigator.of(context);
-    final commentaire = nullSiVide(_commentaire.text);
-
-    try {
-      if (_edition) {
-        final id = widget.personne!.idPersonne;
-        await (db.update(db.personnes)..where((t) => t.idPersonne.equals(id)))
-            .write(
-          bdd.PersonnesCompanion(
-            prenom: Value(_prenom.text.trim()),
-            nom: Value(_nom.text.trim()),
-            numeroTel: Value(_tel.text.trim()),
-            idLogement: Value(_logement!.idLogement),
-            commentaire: Value(commentaire),
-          ),
-        );
-      } else {
-        await db.into(db.personnes).insert(
-          bdd.PersonnesCompanion.insert(
-            prenom: _prenom.text.trim(),
-            nom: _nom.text.trim(),
-            numeroTel: _tel.text.trim(),
-            idLogement: _logement!.idLogement,
-            commentaire: Value(commentaire),
-          ),
-        );
-      }
-      navigator.pop(true);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _enCours = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Enregistrement impossible : $e')),
-      );
-    }
+    await depotPersonnes.enregistrer(
+      existant: widget.personne,
+      prenom: _prenom.text.trim(),
+      nom: _nom.text.trim(),
+      tel: _tel.text.trim(),
+      idLogement: _logement!.idLogement,
+      commentaire: nullSiVide(_commentaire.text),
+    );
+    if (mounted) Navigator.of(context).pop(true);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_edition ? 'Modifier la personne' : 'Nouvelle personne'),
-      ),
-      body: Form(
-        key: _formKey,
-        child: ColonneCentree(
+    return PageFormulaire(
+      titre: _edition ? 'Modifier la personne' : 'Nouvelle personne',
+      icone: Icons.person_outline,
+      libelleBouton: _edition ? 'Enregistrer' : 'Ajouter',
+      onEnregistrer: _enregistrer,
+      sections: [
+        SectionCard(
+          titre: 'Identité',
           children: [
-            SectionCard(
-              titre: 'Identité',
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _prenom,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: const InputDecoration(
-                          labelText: 'Prénom',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: champObligatoire,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _nom,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: const InputDecoration(
-                          labelText: 'Nom',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: champObligatoire,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _tel,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(10),
-                  ],
-                  decoration: const InputDecoration(
-                    labelText: 'Téléphone',
-                    prefixIcon: Icon(Icons.phone_outlined),
-                    border: OutlineInputBorder(),
+                Expanded(
+                  child: ChampTexte(
+                    controller: _prenom,
+                    label: 'Prénom',
+                    obligatoire: true,
+                    capitalisation: TextCapitalization.words,
                   ),
-                  validator: (v) => (v == null || v.length != 10)
-                      ? 'Le numéro doit contenir 10 chiffres'
-                      : null,
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SectionCard(
-              titre: 'Logement',
-              children: [
-                FormField<bdd.Logement>(
-                  initialValue: _logement,
-                  validator: (v) => v == null ? 'Choisis un logement' : null,
-                  builder: (state) {
-                    final l = _logement;
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(4),
-                      onTap: () async {
-                        final choix = await choisirLogement(
-                          context,
-                          selectionId: _logement?.idLogement,
-                        );
-                        if (choix != null) {
-                          setState(() => _logement = choix);
-                          state.didChange(choix);
-                        }
-                      },
-                      child: InputDecorator(
-                        isEmpty: l == null,
-                        decoration: InputDecoration(
-                          labelText: 'Logement',
-                          prefixIcon: const Icon(Icons.home_outlined),
-                          suffixIcon: const Icon(Icons.search),
-                          border: const OutlineInputBorder(),
-                          errorText: state.errorText,
-                        ),
-                        child: Text(
-                          l == null ? '' : '${l.adresse} · porte ${l.porte}',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 8),
-                const TexteMuet(
-                  'Recherche un logement existant ou crée-en un nouveau.',
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SectionCard(
-              titre: 'Commentaire',
-              children: [
-                TextFormField(
-                  controller: _commentaire,
-                  maxLines: 4,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    labelText: 'Commentaire (facultatif)',
-                    alignLabelWithHint: true,
-                    border: OutlineInputBorder(),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ChampTexte(
+                    controller: _nom,
+                    label: 'Nom',
+                    obligatoire: true,
+                    capitalisation: TextCapitalization.words,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: _enCours ? null : _enregistrer,
-              icon: _enCours
-                  ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-                  : const Icon(Icons.check),
-              label: Text(_edition ? 'Enregistrer' : 'Ajouter'),
+            const SizedBox(height: 12),
+            ChampTexte(
+              controller: _tel,
+              label: 'Téléphone',
+              icone: Icons.phone_outlined,
+              clavier: TextInputType.phone,
+              maxLength: 10,
+              formatters: [FilteringTextInputFormatter.digitsOnly],
+              validator: (v) => (v == null || v.length != 10)
+                  ? 'Le numéro doit contenir 10 chiffres'
+                  : null,
             ),
           ],
         ),
-      ),
+        SectionCard(
+          titre: 'Logement',
+          children: [
+            ChampLogement(
+              valeur: _logement,
+              onChange: (l) => setState(() => _logement = l),
+            ),
+            const SizedBox(height: 8),
+            const TexteMuet(
+              'Recherche un logement existant ou crée-en un nouveau.',
+            ),
+          ],
+        ),
+        SectionCard(
+          titre: 'Commentaire',
+          children: [
+            ChampTexte(
+              controller: _commentaire,
+              label: 'Commentaire (facultatif)',
+              lignes: 4,
+              capitalisation: TextCapitalization.sentences,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
