@@ -1,19 +1,13 @@
-import 'package:drift/drift.dart' hide Column, Table;
 import 'package:flutter/material.dart';
 
 import '../../core/router/sub_page_entry.dart';
-import '../../core/widgets/page_container.dart';
 import '../../data/bdd/database.dart' as bdd;
+import '../../data/bdd/depots.dart';
+import 'gabarits.dart';
 import 'logement_edit_page.dart';
 import 'widgets/bdd_widgets.dart';
 
 enum _Tri { adresse, porte }
-
-class _Ligne {
-  const _Ligne(this.logement, this.nbPersonnes);
-  final bdd.Logement logement;
-  final int nbPersonnes;
-}
 
 // ======================================================================
 // Liste
@@ -33,92 +27,33 @@ class Logement extends StatefulWidget {
 }
 
 class _LogementState extends State<Logement> {
-  final _searchCtrl = TextEditingController();
-
+  // --- état des filtres
   String _recherche = '';
   bool _avecCode = false;
   bool _avecInfos = false;
   bool _sansPersonne = false;
   _Tri _tri = _Tri.adresse;
 
-  late Stream<List<_Ligne>> _stream = _buildStream();
+  // --- données (recréées à chaque changement de filtre)
+  late Stream<List<LigneLogement>> _stream = _requete();
 
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
+  Stream<List<LigneLogement>> _requete() => depotLogements.liste(
+        recherche: _recherche,
+        avecCode: _avecCode,
+        avecInfos: _avecInfos,
+        sansPersonne: _sansPersonne,
+        triParPorte: _tri == _Tri.porte,
+      );
 
-  Stream<List<_Ligne>> _buildStream() {
-    final l = bdd.db.logements;
-    final p = bdd.db.personnes;
-    final nb = p.idPersonne.count();
-
-    final query = bdd.db.select(l).join([
-      leftOuterJoin(p, p.idLogement.equalsExp(l.idLogement)),
-    ])
-      ..addColumns([nb]);
-
-    Expression<bool>? where;
-    void et(Expression<bool> e) => where = where == null ? e : where! & e;
-
-    final q = _recherche.trim();
-    if (q.isNotEmpty) {
-      for (final mot in q.split(RegExp(r'\s+'))) {
-        final m = '%$mot%';
-        et(l.adresse.like(m) |
-        l.porte.like(m) |
-        l.code.like(m) |
-        l.infoSuplementaire.like(m));
-      }
-    }
-    if (_avecCode) {
-      et(l.code.isNotNull() & l.code.length.isBiggerThanValue(0));
-    }
-    if (_avecInfos) {
-      et(l.infoSuplementaire.isNotNull() &
-      l.infoSuplementaire.length.isBiggerThanValue(0));
-    }
-    if (where != null) query.where(where!);
-
-    query.groupBy(
-      [l.idLogement],
-      having: _sansPersonne ? nb.equals(0) : null,
-    );
-
-    final premier = _tri == _Tri.adresse ? l.adresse : l.porte;
-    final second = _tri == _Tri.adresse ? l.porte : l.adresse;
-    query.orderBy([
-      OrderingTerm(expression: premier, mode: OrderingMode.asc),
-      OrderingTerm(expression: second, mode: OrderingMode.asc),
-    ]);
-
-    return query.watch().map(
-          (rows) => [
-        for (final r in rows) _Ligne(r.readTable(l), r.read(nb) ?? 0),
-      ],
-    );
-  }
-
-  void _rafraichir(VoidCallback maj) {
+  /// Modifie un filtre puis recharge la liste.
+  void _changerFiltre(VoidCallback maj) {
     setState(() {
       maj();
-      _stream = _buildStream();
+      _stream = _requete();
     });
   }
 
-  int get _nbFiltres =>
-      (_avecCode ? 1 : 0) + (_avecInfos ? 1 : 0) + (_sansPersonne ? 1 : 0);
-
-  void _reinitialiserFiltres() {
-    _searchCtrl.clear();
-    _rafraichir(() {
-      _recherche = '';
-      _avecCode = false;
-      _avecInfos = false;
-      _sansPersonne = false;
-    });
-  }
+  // --- actions
 
   void _ajouter() {
     Navigator.of(context).push(
@@ -128,7 +63,7 @@ class _LogementState extends State<Logement> {
     );
   }
 
-  void _ouvrirFiche(_Ligne ligne) {
+  void _ouvrirFiche(LigneLogement ligne) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => _LogementDetailPage(id: ligne.logement.idLogement),
@@ -136,387 +71,218 @@ class _LogementState extends State<Logement> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  // --- affichage
+
+  Widget _carte(LigneLogement ligne) {
     final cs = Theme.of(context).colorScheme;
+    final l = ligne.logement;
+    final nb = ligne.nbPersonnes;
+    final aCode = l.code != null && l.code!.isNotEmpty;
 
-    return PageContainer(
+    return CarteListe(
+      onTap: () => _ouvrirFiche(ligne),
+      leading: CircleAvatar(
+        radius: 24,
+        backgroundColor: cs.primaryContainer,
+        foregroundColor: cs.onPrimaryContainer,
+        child: const Icon(Icons.home_outlined),
+      ),
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: SearchBar(
-                controller: _searchCtrl,
-                hintText: 'Adresse, porte, code, infos…',
-                leading: const Icon(Icons.search),
-                elevation: const WidgetStatePropertyAll(0),
-                trailing: [
-                  if (_recherche.isNotEmpty)
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () {
-                        _searchCtrl.clear();
-                        _rafraichir(() => _recherche = '');
-                      },
-                    ),
-                ],
-                onChanged: (v) => _rafraichir(() => _recherche = v),
-              ),
-            ),
-            const SizedBox(width: 12),
-            FilledButton.icon(
-              onPressed: _ajouter,
-              icon: const Icon(Icons.add_home_outlined),
-              label: const Text('Ajouter'),
-            ),
-          ],
+        Text(
+          l.adresse,
+          style: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(fontWeight: FontWeight.w600),
         ),
-        const SizedBox(height: 12),
-
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              FilterChip(
-                label: const Text('Avec code'),
-                selected: _avecCode,
-                onSelected: (v) => _rafraichir(() => _avecCode = v),
-              ),
-              const SizedBox(width: 8),
-              FilterChip(
-                label: const Text('Avec infos'),
-                selected: _avecInfos,
-                onSelected: (v) => _rafraichir(() => _avecInfos = v),
-              ),
-              const SizedBox(width: 8),
-              FilterChip(
-                label: const Text('Sans personne'),
-                selected: _sansPersonne,
-                onSelected: (v) => _rafraichir(() => _sansPersonne = v),
-              ),
-              const SizedBox(width: 8),
-              PopupMenuButton<_Tri>(
-                tooltip: 'Trier par',
-                initialValue: _tri,
-                onSelected: (t) => _rafraichir(() => _tri = t),
-                itemBuilder: (_) => const [
-                  PopupMenuItem(
-                      value: _Tri.adresse, child: Text('Trier par adresse')),
-                  PopupMenuItem(
-                      value: _Tri.porte, child: Text('Trier par porte')),
-                ],
-                child: Chip(
-                  avatar: const Icon(Icons.sort, size: 18),
-                  label: Text(
-                    _tri == _Tri.adresse ? 'Tri : adresse' : 'Tri : porte',
-                  ),
-                ),
-              ),
-              if (_nbFiltres > 0 || _recherche.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                ActionChip(
-                  avatar: const Icon(Icons.filter_alt_off, size: 18),
-                  label: const Text('Réinitialiser'),
-                  onPressed: _reinitialiserFiltres,
-                ),
-              ],
-            ],
-          ),
+        const SizedBox(height: 4),
+        LigneCompacte(
+          icone: Icons.door_front_door_outlined,
+          texte: 'Porte ${l.porte}',
         ),
-        const SizedBox(height: 16),
-
-        StreamBuilder<List<_Ligne>>(
-          stream: _stream,
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text('Erreur : ${snapshot.error}'),
-              );
-            }
-            if (!snapshot.hasData) {
-              return const Padding(
-                padding: EdgeInsets.all(32),
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-            final lignes = snapshot.data!;
-            if (lignes.isEmpty) {
-              final filtre = _recherche.isNotEmpty || _nbFiltres > 0;
-              return EtatVide(
-                icone: filtre ? Icons.search_off : Icons.home_work_outlined,
-                titre: filtre ? 'Aucun résultat' : 'Aucun logement',
-                message: filtre
-                    ? 'Essaie de modifier ta recherche ou tes filtres.'
-                    : 'Utilise le bouton « Ajouter » pour commencer.',
-              );
-            }
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(left: 4, bottom: 8),
-                  child: Text(
-                    '${lignes.length} logement${lignes.length > 1 ? 's' : ''}',
-                    style: Theme.of(context)
-                        .textTheme
-                        .labelLarge
-                        ?.copyWith(color: cs.onSurfaceVariant),
-                  ),
-                ),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: lignes.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, i) {
-                    final l = lignes[i].logement;
-                    final nb = lignes[i].nbPersonnes;
-                    final aCode = l.code != null && l.code!.isNotEmpty;
-                    return CarteListe(
-                      onTap: () => _ouvrirFiche(lignes[i]),
-                      leading: CircleAvatar(
-                        radius: 24,
-                        backgroundColor: cs.primaryContainer,
-                        foregroundColor: cs.onPrimaryContainer,
-                        child: const Icon(Icons.home_outlined),
-                      ),
-                      children: [
-                        Text(
-                          l.adresse,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 4),
-                        LigneCompacte(
-                          icone: Icons.door_front_door_outlined,
-                          texte: 'Porte ${l.porte}',
-                        ),
-                        if (aCode)
-                          LigneCompacte(
-                            icone: Icons.key_outlined,
-                            texte: 'Code : ${l.code}',
-                          ),
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: BadgePill(
-                            icone: Icons.person_outline,
-                            discret: nb == 0,
-                            texte: nb == 0
-                                ? 'Aucune personne'
-                                : '$nb personne${nb > 1 ? 's' : ''}',
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            );
-          },
+        if (aCode)
+          LigneCompacte(icone: Icons.key_outlined, texte: 'Code : ${l.code}'),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: _badgeOccupants(nb),
         ),
       ],
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    return PageListe<LigneLogement>(
+      stream: _stream,
+      carte: _carte,
+      hintRecherche: 'Adresse, porte, code, infos…',
+      onRecherche: (v) => _changerFiltre(() => _recherche = v),
+      iconeAjout: Icons.add_home_outlined,
+      onAjouter: _ajouter,
+      singulier: 'logement',
+      pluriel: 'logements',
+      iconeVide: Icons.home_work_outlined,
+      titreVide: 'Aucun logement',
+      filtres: [
+        FilterChip(
+          label: const Text('Avec code'),
+          selected: _avecCode,
+          onSelected: (v) => _changerFiltre(() => _avecCode = v),
+        ),
+        FilterChip(
+          label: const Text('Avec infos'),
+          selected: _avecInfos,
+          onSelected: (v) => _changerFiltre(() => _avecInfos = v),
+        ),
+        FilterChip(
+          label: const Text('Sans personne'),
+          selected: _sansPersonne,
+          onSelected: (v) => _changerFiltre(() => _sansPersonne = v),
+        ),
+        ChipTri<_Tri>(
+          valeur: _tri,
+          options: const {_Tri.adresse: 'adresse', _Tri.porte: 'porte'},
+          onChange: (t) => _changerFiltre(() => _tri = t),
+        ),
+      ],
+      filtresActifs: _avecCode || _avecInfos || _sansPersonne,
+      onReinitialiser: () => _changerFiltre(() {
+        _recherche = '';
+        _avecCode = false;
+        _avecInfos = false;
+        _sansPersonne = false;
+      }),
+    );
+  }
 }
+
+/// Pastille « 3 personnes » / « Aucune personne ».
+Widget _badgeOccupants(int nb) => BadgePill(
+      icone: Icons.person_outline,
+      discret: nb == 0,
+      texte: nb == 0 ? 'Aucune personne' : '$nb personne${nb > 1 ? 's' : ''}',
+    );
 
 // ======================================================================
 // Fiche détaillée
 // ======================================================================
 
-class _LogementDetailPage extends StatefulWidget {
+class _LogementDetailPage extends StatelessWidget {
   const _LogementDetailPage({required this.id});
 
   final int id;
 
-  @override
-  State<_LogementDetailPage> createState() => _LogementDetailPageState();
-}
-
-class _LogementDetailPageState extends State<_LogementDetailPage> {
-  late final Stream<bdd.Logement?> _logementStream =
-  (bdd.db.select(bdd.db.logements)
-    ..where((t) => t.idLogement.equals(widget.id)))
-      .watchSingleOrNull();
-
-  late final Stream<List<bdd.Personne>> _occupantsStream =
-  (bdd.db.select(bdd.db.personnes)
-    ..where((t) => t.idLogement.equals(widget.id))
-    ..orderBy([
-          (t) => OrderingTerm.asc(t.nom),
-          (t) => OrderingTerm.asc(t.prenom),
-    ]))
-      .watch();
-
-  void _modifier(bdd.Logement l) {
+  void _modifier(BuildContext context, FicheLogement fiche) {
     Navigator.of(context).push(
       MaterialPageRoute<bdd.Logement>(
-        builder: (_) => LogementEditPage(existant: l),
+        builder: (_) => LogementEditPage(existant: fiche.logement),
       ),
     );
   }
 
-  Future<void> _supprimer(bdd.Logement l) async {
-    final ok = await confirmer(
+  void _supprimer(BuildContext context, FicheLogement fiche) {
+    final l = fiche.logement;
+    supprimerAvecConfirmation(
       context,
       titre: 'Supprimer ce logement ?',
       message: '${l.adresse} (porte ${l.porte}) sera supprimé.',
+      supprimer: () => depotLogements.supprimer(id),
+      erreur:
+          'Suppression impossible : ce logement est lié à des personnes ou des visites.',
     );
-    if (!ok || !mounted) return;
+  }
 
-    final navigator = Navigator.of(context);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await (bdd.db.delete(bdd.db.logements)
-        ..where((t) => t.idLogement.equals(widget.id)))
-          .go();
-      navigator.pop();
-    } catch (_) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Suppression impossible : ce logement est lié à des personnes ou des visites.',
-          ),
+  FicheContenu _contenu(BuildContext context, FicheLogement fiche) {
+    final cs = Theme.of(context).colorScheme;
+    final l = fiche.logement;
+    final occupants = fiche.occupants;
+    final nb = occupants.length;
+    final aCode = l.code != null && l.code!.isNotEmpty;
+    final aInfos =
+        l.infoSuplementaire != null && l.infoSuplementaire!.isNotEmpty;
+
+    return FicheContenu(
+      avatar: CircleAvatar(
+        radius: 40,
+        backgroundColor: cs.primary,
+        foregroundColor: cs.onPrimary,
+        child: const Icon(Icons.home_outlined, size: 36),
+      ),
+      titre: l.adresse,
+      sousTitre: 'Porte ${l.porte}',
+      badges: [_badgeOccupants(nb)],
+      sections: [
+        SectionCard(
+          titre: 'Accès',
+          children: [
+            InfoLigne(
+              icone: Icons.home_outlined,
+              label: 'Adresse',
+              valeur: l.adresse,
+              aCopier: l.adresse,
+            ),
+            InfoLigne(
+              icone: Icons.door_front_door_outlined,
+              label: 'Porte',
+              valeur: l.porte,
+            ),
+            if (aCode)
+              InfoLigne(
+                icone: Icons.key_outlined,
+                label: 'Code',
+                valeur: l.code!,
+                aCopier: l.code,
+              )
+            else
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: TexteMuet('Aucun code renseigné'),
+              ),
+          ],
         ),
-      );
-    }
+        SectionCard(
+          titre: 'Informations',
+          children: [
+            aInfos
+                ? SelectableText(
+                    l.infoSuplementaire!,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  )
+                : const TexteMuet('Aucune information supplémentaire'),
+          ],
+        ),
+        SectionCard(
+          titre: 'Occupants ($nb)',
+          children: [
+            if (occupants.isEmpty)
+              const TexteMuet('Aucune personne rattachée')
+            else
+              for (final p in occupants)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor: cs.primaryContainer,
+                    foregroundColor: cs.onPrimaryContainer,
+                    child: Text(initialesDe(p.prenom, p.nom)),
+                  ),
+                  title: Text('${p.prenom} ${p.nom}'),
+                  subtitle: Text(formaterTel(p.numeroTel)),
+                ),
+          ],
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return StreamBuilder<bdd.Logement?>(
-      stream: _logementStream,
-      builder: (context, snapLogement) {
-        if (!snapLogement.hasData) {
-          return Scaffold(
-            appBar: AppBar(),
-            body: Center(
-              child: snapLogement.connectionState == ConnectionState.waiting
-                  ? const CircularProgressIndicator()
-                  : const Text('Logement introuvable'),
-            ),
-          );
-        }
-        final l = snapLogement.data!;
-        final aCode = l.code != null && l.code!.isNotEmpty;
-        final aInfos =
-            l.infoSuplementaire != null && l.infoSuplementaire!.isNotEmpty;
-
-        return StreamBuilder<List<bdd.Personne>>(
-          stream: _occupantsStream,
-          builder: (context, snapOccupants) {
-            final occupants = snapOccupants.data ?? const <bdd.Personne>[];
-            final nb = occupants.length;
-
-            return Scaffold(
-              appBar: AppBar(
-                title: const Text('Fiche logement'),
-                actions: [
-                  IconButton(
-                    tooltip: 'Modifier',
-                    icon: const Icon(Icons.edit_outlined),
-                    onPressed: () => _modifier(l),
-                  ),
-                  IconButton(
-                    tooltip: 'Supprimer',
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () => _supprimer(l),
-                  ),
-                ],
-              ),
-              body: ColonneCentree(
-                children: [
-                  EnteteDetail(
-                    avatar: CircleAvatar(
-                      radius: 40,
-                      backgroundColor: cs.primary,
-                      foregroundColor: cs.onPrimary,
-                      child: const Icon(Icons.home_outlined, size: 36),
-                    ),
-                    titre: l.adresse,
-                    sousTitre: 'Porte ${l.porte}',
-                    badges: [
-                      BadgePill(
-                        icone: Icons.person_outline,
-                        discret: nb == 0,
-                        texte: nb == 0
-                            ? 'Aucune personne'
-                            : '$nb personne${nb > 1 ? 's' : ''}',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  SectionCard(
-                    titre: 'Accès',
-                    children: [
-                      InfoLigne(
-                        icone: Icons.home_outlined,
-                        label: 'Adresse',
-                        valeur: l.adresse,
-                        aCopier: l.adresse,
-                      ),
-                      InfoLigne(
-                        icone: Icons.door_front_door_outlined,
-                        label: 'Porte',
-                        valeur: l.porte,
-                      ),
-                      if (aCode)
-                        InfoLigne(
-                          icone: Icons.key_outlined,
-                          label: 'Code',
-                          valeur: l.code!,
-                          aCopier: l.code,
-                        )
-                      else
-                        const Padding(
-                          padding: EdgeInsets.only(top: 6),
-                          child: TexteMuet('Aucun code renseigné'),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  SectionCard(
-                    titre: 'Informations',
-                    children: [
-                      aInfos
-                          ? SelectableText(
-                        l.infoSuplementaire!,
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      )
-                          : const TexteMuet('Aucune information supplémentaire'),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  SectionCard(
-                    titre: 'Occupants ($nb)',
-                    children: [
-                      if (occupants.isEmpty)
-                        const TexteMuet('Aucune personne rattachée')
-                      else
-                        for (final p in occupants)
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: CircleAvatar(
-                              backgroundColor: cs.primaryContainer,
-                              foregroundColor: cs.onPrimaryContainer,
-                              child: Text(initialesDe(p.prenom, p.nom)),
-                            ),
-                            title: Text('${p.prenom} ${p.nom}'),
-                            subtitle: Text(formaterTel(p.numeroTel)),
-                          ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+    return PageFiche<FicheLogement>(
+      creerStream: () => depotLogements.fiche(id),
+      introuvable: 'Logement introuvable',
+      contenu: (fiche) => _contenu(context, fiche),
+      onModifier: (fiche) => _modifier(context, fiche),
+      onSupprimer: (fiche) => _supprimer(context, fiche),
     );
   }
 }

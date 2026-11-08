@@ -1,21 +1,22 @@
-import 'package:drift/drift.dart' hide Column, Table;
 import 'package:flutter/material.dart';
 
 import '../../../../data/bdd/database.dart' as bdd;
+import '../../../../data/bdd/depots.dart';
 import '../logement_edit_page.dart';
 
 /// Ouvre un sélecteur de logement avec recherche.
 /// Retourne le logement choisi (ou créé), ou null si annulé.
 Future<bdd.Logement?> choisirLogement(
-    BuildContext context, {
-      int? selectionId,
-      bool permettreCreation = true,
-    }) {
+  BuildContext context, {
+  int? selectionId,
+  bool permettreCreation = true,
+}) {
   return showModalBottomSheet<bdd.Logement>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    showDragHandle: true,
+    showDragHandle: false,
+    clipBehavior: Clip.antiAlias,
     builder: (ctx) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
       child: SizedBox(
@@ -41,28 +42,19 @@ class _Selecteur extends StatefulWidget {
 
 class _SelecteurState extends State<_Selecteur> {
   String _q = '';
-  late Stream<List<bdd.Logement>> _stream = _buildStream();
+  final _ctrl = TextEditingController();
+  late Stream<List<bdd.Logement>> _stream = depotLogements.chercher(_q);
 
-  Stream<List<bdd.Logement>> _buildStream() {
-    final s = bdd.db.select(bdd.db.logements);
-    final q = _q.trim();
-    if (q.isNotEmpty) {
-      s.where((t) {
-        Expression<bool>? e;
-        for (final mot in q.split(RegExp(r'\s+'))) {
-          final m = '%$mot%';
-          final c = t.adresse.like(m) | t.porte.like(m) | t.code.like(m);
-          e = e == null ? c : e & c;
-        }
-        return e!;
-      });
-    }
-    s.orderBy([
-          (t) => OrderingTerm.asc(t.adresse),
-          (t) => OrderingTerm.asc(t.porte),
-    ]);
-    return s.watch();
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
   }
+
+  void _setQuery(String v) => setState(() {
+        _q = v;
+        _stream = depotLogements.chercher(_q);
+      });
 
   Future<void> _creer() async {
     final navigator = Navigator.of(context);
@@ -82,24 +74,73 @@ class _SelecteurState extends State<_Selecteur> {
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text('Choisir un logement', style: tt.titleLarge),
+        // ───── Header (poignée + titre + recherche) ─────
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(20, 12, 12, 14),
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerLow,
+            border: Border(bottom: BorderSide(color: cs.outlineVariant)),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: SearchBar(
-            autoFocus: true,
-            hintText: 'Adresse, porte, code…',
-            leading: const Icon(Icons.search),
-            elevation: const WidgetStatePropertyAll(0),
-            onChanged: (v) => setState(() {
-              _q = v;
-              _stream = _buildStream();
-            }),
+          child: Column(
+            children: [
+              Container(
+                width: 32,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 10, right: 8),
+                decoration: BoxDecoration(
+                  color: cs.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Choisir un logement',
+                      style: tt.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Fermer',
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: TextField(
+                  controller: _ctrl,
+                  autofocus: true,
+                  onChanged: _setQuery,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: 'Adresse, porte, code…',
+                    prefixIcon: const Icon(Icons.search, size: 22),
+                    suffixIcon: q.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close, size: 20),
+                            onPressed: () {
+                              _ctrl.clear();
+                              _setQuery('');
+                            },
+                          ),
+                    filled: true,
+                    fillColor: cs.surfaceContainerHighest,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         if (widget.permettreCreation)
@@ -127,8 +168,7 @@ class _SelecteurState extends State<_Selecteur> {
                       q.isEmpty
                           ? 'Aucun logement pour le moment'
                           : 'Aucun logement trouvé',
-                      style: tt.bodyMedium
-                          ?.copyWith(color: cs.onSurfaceVariant),
+                      style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
                     ),
                   ),
                 );
@@ -152,6 +192,57 @@ class _SelecteurState extends State<_Selecteur> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Champ de formulaire « Logement » : affiche le choix et ouvre le sélecteur.
+/// À placer dans un Form (il valide qu'un logement est choisi).
+class ChampLogement extends StatelessWidget {
+  const ChampLogement({
+    super.key,
+    required this.valeur,
+    required this.onChange,
+  });
+
+  final bdd.Logement? valeur;
+  final ValueChanged<bdd.Logement> onChange;
+
+  @override
+  Widget build(BuildContext context) {
+    return FormField<bdd.Logement>(
+      initialValue: valeur,
+      validator: (v) => v == null ? 'Choisis un logement' : null,
+      builder: (state) {
+        final l = valeur;
+        return InkWell(
+          borderRadius: BorderRadius.circular(4),
+          onTap: () async {
+            final choix = await choisirLogement(
+              context,
+              selectionId: l?.idLogement,
+            );
+            if (choix != null) {
+              onChange(choix);
+              state.didChange(choix);
+            }
+          },
+          child: InputDecorator(
+            isEmpty: l == null,
+            decoration: InputDecoration(
+              labelText: 'Logement',
+              prefixIcon: const Icon(Icons.home_outlined),
+              suffixIcon: const Icon(Icons.search),
+              border: const OutlineInputBorder(),
+              errorText: state.errorText,
+            ),
+            child: Text(
+              l == null ? '' : '${l.adresse} · porte ${l.porte}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        );
+      },
     );
   }
 }

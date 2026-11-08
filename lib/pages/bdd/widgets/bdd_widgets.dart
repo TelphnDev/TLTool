@@ -23,11 +23,11 @@ String initialesDe(String prenom, String nom) {
 }
 
 Future<bool> confirmer(
-    BuildContext context, {
-      required String titre,
-      required String message,
-      String action = 'Supprimer',
-    }) async {
+  BuildContext context, {
+  required String titre,
+  required String message,
+  String action = 'Supprimer',
+}) async {
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -51,6 +51,7 @@ Future<bool> confirmer(
 // ---------------------------------------------------------------- mise en page
 
 /// Liste verticale centrée, largeur max 720 (fiches et formulaires).
+/// Gère aussi la zone de la barre d'état (pas d'AppBar sur ces pages).
 class ColonneCentree extends StatelessWidget {
   const ColonneCentree({super.key, required this.children});
 
@@ -58,13 +59,16 @@ class ColonneCentree extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720),
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: children,
+    return SafeArea(
+      bottom: false,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: children,
+          ),
         ),
       ),
     );
@@ -97,10 +101,10 @@ class SectionCard extends StatelessWidget {
             Text(
               titre.toUpperCase(),
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: cs.primary,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.8,
-              ),
+                    color: cs.primary,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
             ),
             const SizedBox(height: 12),
             ...children,
@@ -111,7 +115,38 @@ class SectionCard extends StatelessWidget {
   }
 }
 
-/// Grand bandeau en haut d'une fiche.
+/// Bouton rond semi-transparent, posé sur un bandeau dégradé.
+class BoutonRond extends StatelessWidget {
+  const BoutonRond({
+    super.key,
+    required this.icone,
+    required this.tooltip,
+    required this.onPressed,
+    this.danger = false,
+  });
+
+  final IconData icone;
+  final String tooltip;
+  final VoidCallback onPressed;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return IconButton(
+      tooltip: tooltip,
+      icon: Icon(icone),
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        backgroundColor: cs.surface.withValues(alpha: 0.55),
+        foregroundColor: danger ? cs.error : cs.onPrimaryContainer,
+      ),
+    );
+  }
+}
+
+/// Grand bandeau en haut d'une fiche. Remplace l'AppBar :
+/// [onRetour] affiche le bouton retour, [actions] les boutons à droite.
 class EnteteDetail extends StatelessWidget {
   const EnteteDetail({
     super.key,
@@ -119,21 +154,26 @@ class EnteteDetail extends StatelessWidget {
     required this.titre,
     this.sousTitre,
     this.badges = const [],
+    this.onRetour,
+    this.actions = const [],
   });
 
   final Widget avatar;
   final String titre;
   final String? sousTitre;
   final List<Widget> badges;
+  final VoidCallback? onRetour;
+  final List<Widget> actions;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
+    final aBarre = onRetour != null || actions.isNotEmpty;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+      padding: EdgeInsets.fromLTRB(12, aBarre ? 12 : 28, 12, 24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -144,14 +184,34 @@ class EnteteDetail extends StatelessWidget {
       ),
       child: Column(
         children: [
+          if (aBarre)
+            Row(
+              children: [
+                if (onRetour != null)
+                  BoutonRond(
+                    icone: Icons.arrow_back,
+                    tooltip: 'Retour',
+                    onPressed: onRetour!,
+                  ),
+                const Spacer(),
+                for (var i = 0; i < actions.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 6),
+                  actions[i],
+                ],
+              ],
+            ),
+          if (aBarre) const SizedBox(height: 4),
           avatar,
           const SizedBox(height: 14),
-          Text(
-            titre,
-            textAlign: TextAlign.center,
-            style: tt.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: cs.onPrimaryContainer,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              titre,
+              textAlign: TextAlign.center,
+              style: tt.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: cs.onPrimaryContainer,
+              ),
             ),
           ),
           if (sousTitre != null) ...[
@@ -179,6 +239,58 @@ class EnteteDetail extends StatelessWidget {
   }
 }
 
+/// Bandeau en haut d'un formulaire : retour + titre + icône.
+class EnteteFormulaire extends StatelessWidget {
+  const EnteteFormulaire({super.key, required this.titre, required this.icone});
+
+  final String titre;
+  final IconData icone;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 12, 20, 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [cs.primaryContainer, cs.surfaceContainerLow],
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        children: [
+          BoutonRond(
+            icone: Icons.arrow_back,
+            tooltip: 'Retour',
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              titre,
+              style: tt.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: cs.onPrimaryContainer,
+              ),
+            ),
+          ),
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: cs.primary,
+            foregroundColor: cs.onPrimary,
+            child: Icon(icone),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Petite pastille (ex. « 3 personnes »).
 class BadgePill extends StatelessWidget {
   const BadgePill({
@@ -197,7 +309,7 @@ class BadgePill extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final fond = discret ? cs.surfaceContainerHighest : cs.secondaryContainer;
     final texteCouleur =
-    discret ? cs.onSurfaceVariant : cs.onSecondaryContainer;
+        discret ? cs.onSurfaceVariant : cs.onSecondaryContainer;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -305,9 +417,9 @@ class TexteMuet extends StatelessWidget {
     return Text(
       texte,
       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-        fontStyle: FontStyle.italic,
-      ),
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontStyle: FontStyle.italic,
+          ),
     );
   }
 }
