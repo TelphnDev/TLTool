@@ -2,17 +2,68 @@ name: Build Flutter (Android + iOS)
 
 on:
   workflow_dispatch:
+    inputs:
+      ios:
+        description: "Construire aussi l'IPA iOS (coûteux)"
+        type: boolean
+        default: false
   push:
+    branches:
+      - master
     tags:
       - "v*"
 
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   android:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     permissions:
       contents: write
     steps:
-      # ... tes étapes actuelles jusqu'au build APK ...
+      - uses: actions/checkout@<SHA_CHECKOUT> # v4.x.x
+
+      - uses: actions/setup-java@<SHA_SETUP_JAVA> # v4.x.x
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@<SHA_FLUTTER_ACTION> # v2.x.x
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Préparer la signature Android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+
+      - name: Build APK signé
+        run: flutter build apk --release
+
+      - uses: actions/upload-artifact@<SHA_UPLOAD_ARTIFACT> # v4.x.x
+        with:
+          name: android-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
 
       - name: Publier la release
         if: startsWith(github.ref, 'refs/tags/')
@@ -24,20 +75,14 @@ jobs:
             --title "${{ github.ref_name }}" \
             --generate-notes
 
-      - name: Build APK signé
-        run: flutter build apk --release
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-
   ios:
+    if: startsWith(github.ref, 'refs/tags/') || inputs.ios
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@<SHA_CHECKOUT> # v4.x.x
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@<SHA_FLUTTER_ACTION> # v2.x.x
         with:
           channel: stable
           cache: true
@@ -53,7 +98,8 @@ jobs:
           cp -r build/ios/iphoneos/Runner.app Payload/
           zip -r app-unsigned.ipa Payload
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@<SHA_UPLOAD_ARTIFACT> # v4.x.x
         with:
           name: ios-ipa-unsigned
           path: app-unsigned.ipa
+          retention-days: 7
